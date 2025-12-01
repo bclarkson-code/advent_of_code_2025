@@ -34,7 +34,7 @@ fn readFile(path: []const u8, allocator: std.mem.Allocator) ![]u8 {
     return buf[0..bytes_read];
 }
 
-fn parseLine(line: []u8) !struct { Rotation, i64 } {
+fn parseLine(line: []const u8) !struct { rotation: Rotation, val: i64 } {
     const rotation = switch (line[0]) {
         'L' => Rotation.left,
         'R' => Rotation.right,
@@ -42,17 +42,17 @@ fn parseLine(line: []u8) !struct { Rotation, i64 } {
     };
 
     const val = try std.fmt.parseInt(i64, line[1..], 10);
-    return .{ rotation, val };
+    return .{ .rotation = rotation, .val = val };
 }
 
-fn applyRotation(rotation: Rotation, val: i64, current: i64, count_intermediate: bool) struct { i64, i64 } {
+fn applyRotation(rotation: Rotation, val: i64, current: i64, count_intermediate: bool) struct { val: i64, n_zeros: u64 } {
     const coef: i64 = switch (rotation) {
         .left => -1,
         .right => 1,
     };
 
     var after: i64 = current;
-    var n_zeros: i64 = 0;
+    var n_zeros: u64 = 0;
     var to_add: i64 = val;
 
     while (to_add != 0) {
@@ -107,7 +107,23 @@ fn applyRotation(rotation: Rotation, val: i64, current: i64, count_intermediate:
     if (!count_intermediate) {
         n_zeros = if (after == 0) 1 else 0;
     }
-    return .{ after, n_zeros };
+    return .{ .val = after, .n_zeros = n_zeros };
+}
+
+fn countZeros(contents: []const u8, count_intermediate: bool) !u64 {
+    var lines = std.mem.splitScalar(u8, contents, '\n');
+    var current: i64 = 50;
+    var n_zeros: u64 = 0;
+    while (lines.next()) |line| {
+        if (line.len == 0) break;
+
+        const out = try parseLine(line);
+        const result = applyRotation(out.rotation, out.val, current, count_intermediate);
+
+        current = result.val;
+        n_zeros += result.n_zeros;
+    }
+    return n_zeros;
 }
 
 pub fn main() !void {
@@ -119,32 +135,10 @@ pub fn main() !void {
     defer allocator.free(contents);
 
     // part 1
-    var lines = LinesIter{ .contents = contents };
-    var current: i64 = 50;
-    var n_zeros: i64 = 0;
-    while (lines.next()) |line| {
-        const out = try parseLine(line);
-        const rotation = out[0];
-        const val = out[1];
-
-        const result = applyRotation(rotation, val, current, false);
-        current = result[0];
-        n_zeros += result[1];
-    }
+    var n_zeros = try countZeros(contents, false);
     std.debug.print("Part 1: {}\n", .{n_zeros});
 
-    // part 1
-    lines = LinesIter{ .contents = contents };
-    current = 50;
-    n_zeros = 0;
-    while (lines.next()) |line| {
-        const out = try parseLine(line);
-        const rotation = out[0];
-        const val = out[1];
-
-        const result = applyRotation(rotation, val, current, true);
-        current = result[0];
-        n_zeros += result[1];
-    }
+    // part 2
+    n_zeros = try countZeros(contents, true);
     std.debug.print("Part 2: {}\n", .{n_zeros});
 }
