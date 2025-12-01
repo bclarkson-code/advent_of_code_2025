@@ -22,16 +22,7 @@ const LinesIter = struct {
 };
 
 fn readFile(path: []const u8, allocator: std.mem.Allocator) ![]u8 {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
-
-    const file_size = try file.getEndPos();
-    const buf = try allocator.alloc(u8, file_size);
-    errdefer allocator.free(buf);
-
-    const bytes_read: usize = try file.readAll(buf);
-
-    return buf[0..bytes_read];
+    return std.fs.cwd().readFileAlloc(path, allocator, std.Io.Limit.unlimited);
 }
 
 fn parseLine(line: []const u8) !struct { rotation: Rotation, val: i64 } {
