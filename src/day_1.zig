@@ -51,7 +51,7 @@ fn applyRotation(rotation: Rotation, val: i64, current: i64, count_intermediate:
         .right => 1,
     };
 
-    var next: i64 = current;
+    var after: i64 = current;
     var n_zeros: i64 = 0;
     var to_add: i64 = val;
 
@@ -59,52 +59,55 @@ fn applyRotation(rotation: Rotation, val: i64, current: i64, count_intermediate:
         const delta = @min(to_add, 100);
         to_add -= delta;
 
-        // at zero
-        if (next == 0 and delta == 100) {
-            n_zeros += 1;
-            continue;
-        }
-        // partial rotation -> cant end at 0
-        if (next == 0 and delta < 100) {
-            next += coef * delta;
-            next = @mod(next, 100);
-            continue;
-        }
-
         // full rotation -> no change to val, but crosses 0
         if (delta == 100) {
             n_zeros += 1;
             continue;
         }
+        // null rotation
         if (delta == 0) {
             continue;
         }
 
-        // partial rotation
-        next += coef * delta;
-        if (next < 0) {
-            n_zeros += 1;
-            next = @mod(next, 100);
+        // partial rotation (0 < delta < 100)
+        const before = after;
+        after += coef * delta;
+
+        // partial starting at 0 -> cant end at 0
+        if (before == 0 and delta < 100) {
+            after = @mod(after, 100);
             continue;
         }
 
-        if (next == 0) {
+        // crossed 0 anticlockwise
+        if (after < 0) {
+            n_zeros += 1;
+            after = @mod(after, 100);
+            continue;
+        }
+
+        // landed exactly at 0
+        if (after == 0) {
             n_zeros += 1;
             continue;
         }
-        if (0 < next and next <= 99) {
+
+        // started and ended in range -> no 0 crossing
+        if (0 < after and after <= 99) {
             continue;
         }
-        if (99 < next) {
+
+        // crossed 0 clockwise
+        if (99 < after) {
             n_zeros += 1;
-            next = @mod(next, 100);
+            after = @mod(after, 100);
         }
     }
 
     if (!count_intermediate) {
-        n_zeros = if (next == 0) 1 else 0;
+        n_zeros = if (after == 0) 1 else 0;
     }
-    return .{ next, n_zeros };
+    return .{ after, n_zeros };
 }
 
 pub fn main() !void {
