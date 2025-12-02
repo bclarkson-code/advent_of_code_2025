@@ -2,25 +2,6 @@ const std = @import("std");
 
 const Rotation = enum { left, right };
 
-const LinesIter = struct {
-    contents: []u8,
-    idx: usize = 0,
-
-    fn next(self: *LinesIter) ?[]u8 {
-        if (self.idx >= self.contents.len) return null;
-
-        const idx = self.idx;
-        for (self.idx..self.contents.len) |i| {
-            if (self.contents[i] == '\n') {
-                self.idx = i + 1;
-                return self.contents[idx .. self.idx - 1];
-            }
-        }
-        self.idx = self.contents.len;
-        return self.contents[idx..self.idx];
-    }
-};
-
 fn readFile(path: []const u8, allocator: std.mem.Allocator) ![]u8 {
     return std.fs.cwd().readFileAlloc(path, allocator, std.Io.Limit.unlimited);
 }
@@ -102,7 +83,9 @@ fn applyRotation(rotation: Rotation, val: i64, current: i64, count_intermediate:
 }
 
 fn countZeros(contents: []const u8, count_intermediate: bool) !u64 {
-    var lines = std.mem.splitScalar(u8, contents, '\n');
+    const trimmed = std.mem.trimRight(u8, contents, "\n");
+    var lines = std.mem.splitScalar(u8, trimmed, '\n');
+
     var current: i64 = 50;
     var n_zeros: u64 = 0;
     while (lines.next()) |line| {
