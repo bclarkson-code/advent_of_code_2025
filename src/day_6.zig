@@ -2,35 +2,6 @@ const std = @import("std");
 
 const Symbol = enum { add, mul };
 
-const Column = struct {
-    values: [][]const u8,
-    op: Symbol,
-
-    fn apply(self: Column) !u64 {
-        var buf: [16]u8 = undefined;
-        var idx: usize = 0;
-        var total: u64 = if (self.op == Symbol.add) 0 else 1;
-
-        for (0..self.values[0].len) |col| {
-            for (self.values) |val| {
-                if (val[col] != ' ') {
-                    buf[idx] = val[col];
-                    idx += 1;
-                }
-            }
-            const num = try std.fmt.parseInt(u64, buf[0..idx], 10);
-            idx = 0;
-
-            if (self.op == Symbol.add) {
-                total += num;
-            } else {
-                total *= num;
-            }
-        }
-        return total;
-    }
-};
-
 fn readFile(path: []const u8, allocator: std.mem.Allocator) ![]u8 {
     return std.fs.cwd().readFileAlloc(path, allocator, std.Io.Limit.unlimited);
 }
@@ -128,60 +99,49 @@ fn applyOps(nums: [][]u64, ops: []Symbol) u64 {
     return total;
 }
 
-fn parseOps(contents: []const u8, allocator: std.mem.Allocator) !struct { symbols: []Symbol, sizes: []usize } {
-    var op_line: []const u8 = undefined;
-
-    var lines = std.mem.splitScalar(u8, contents, '\n');
-    while (lines.next()) |line| {
-        if (line.len == 0) continue;
-        if (line[0] != '*' and line[0] != '+') continue;
-        op_line = line;
-    }
-    var sizes = std.ArrayList(usize){};
-    var ops = std.ArrayList(Symbol){};
-    var size: usize = 0;
-    for (op_line) |op| {
-        if (op != '*' and op != '+') {
-            size += 1;
-            continue;
-        }
-        switch (op) {
-            '+' => try ops.append(allocator, Symbol.add),
-            '*' => try ops.append(allocator, Symbol.mul),
-            else => return error.InvalidCharacter,
-        }
-
-        if (size == 0) continue;
-
-        try sizes.append(allocator, size + 1);
-        size = 0;
-    }
-    try sizes.append(allocator, size + 2);
-
-    return .{ .symbols = ops.items, .sizes = sizes.items };
-}
-fn parseFileToString(contents: []const u8, allocator: std.mem.Allocator) ![]Column {
-    const ops = try parseOps(contents, allocator);
-
+fn parseVertically(contents: []const u8, allocator: std.mem.Allocator) !u64 {
     const width = std.mem.indexOf(u8, contents, "\n").?;
     const height = contents.len / width;
+    var buf = try allocator.alloc(u8, height - 1);
+    var buf_idx: usize = 0;
+    var symbol: usize = ' ';
+    var col_total: u64 = 0;
+    var total: u64 = 0;
 
-    var columns = std.ArrayList(Column){};
-    var col_values = std.ArrayList([]const u8){};
-    var idx: usize = 0;
-
-    for (ops.symbols, ops.sizes) |symbol, size| {
-        col_values = .empty;
-        for (0..(height - 1)) |row| {
-            const start = (row * (width + 1)) + idx;
-            const end = start + size - 1;
-            try col_values.append(allocator, contents[start..end]);
+    for (0..width) |col| {
+        const symbol_idx = ((width + 1) * (height - 1)) + col;
+        const symbol_val = contents[symbol_idx];
+        if (symbol_val == '+') {
+            symbol = symbol_val;
+            total += col_total;
+            col_total = 0;
+        } else if (symbol_val == '*') {
+            symbol = symbol_val;
+            total += col_total;
+            col_total = 1;
         }
-        idx += size;
-        const column = Column{ .values = col_values.items, .op = symbol };
-        try columns.append(allocator, column);
+
+        for (0..(height - 1)) |row| {
+            const idx: usize = (row * (width + 1)) + col;
+            const val: u8 = contents[idx];
+
+            if (val == ' ') continue;
+
+            buf[buf_idx] = val;
+            buf_idx += 1;
+        }
+        if (buf_idx == 0) continue;
+        const num = try std.fmt.parseInt(u64, buf[0..buf_idx], 10);
+        buf_idx = 0;
+
+        if (symbol == '+') {
+            col_total += num;
+        } else {
+            col_total *= num;
+        }
     }
-    return columns.items;
+    total += col_total;
+    return total;
 }
 
 pub fn main() !void {
@@ -200,10 +160,6 @@ pub fn main() !void {
     const part_1_total = applyOps(parsed.nums, parsed.ops);
     std.debug.print("Part 1: {}\n", .{part_1_total});
 
-    var total: u64 = 0;
-    const columns = try parseFileToString(contents, arena_allocator);
-    for (columns) |col| {
-        total += try col.apply();
-    }
+    const total: u64 = try parseVertically(contents, arena_allocator);
     std.debug.print("Part 2: {}\n", .{total});
 }
