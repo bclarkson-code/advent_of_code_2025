@@ -86,14 +86,6 @@ const Grid = struct {
         self.count[self.index(point)] = val;
     }
 
-    fn deinit(self: Grid) void {
-        self.allocator.free(self.values);
-        for (self.states) |state_ptr| {
-            self.allocator.destroy(state_ptr);
-        }
-        self.allocator.free(self.states);
-    }
-
     fn print(self: Grid) !void {
         const size: usize = (self.width + 1) * self.height;
 
@@ -139,7 +131,7 @@ fn toGrid(contents: []u8, allocator: std.mem.Allocator) !Grid {
     return Grid{ .values = contents, .count = count, .visited = visited, .height = height, .width = width, .allocator = allocator, .start = start };
 }
 
-fn applyBeam(grid: Grid, pos: Point) !usize {
+fn countSplits(grid: Grid, pos: Point) !usize {
     if (!grid.inBounds(pos)) return 0;
     if (try grid.haveVisited(pos)) return 0;
 
@@ -147,14 +139,14 @@ fn applyBeam(grid: Grid, pos: Point) !usize {
     try grid.visit(pos);
 
     if (val == '.' or val == 'S') {
-        return try applyBeam(grid, pos.shift(Direction.down));
+        return try countSplits(grid, pos.shift(Direction.down));
     }
     if (val == '^') {
         const left = pos.shift(Direction.left);
         const right = pos.shift(Direction.right);
 
-        const left_total = try applyBeam(grid, left);
-        const right_total = try applyBeam(grid, right);
+        const left_total = try countSplits(grid, left);
+        const right_total = try countSplits(grid, right);
 
         return left_total + right_total + 1;
     }
@@ -202,7 +194,7 @@ pub fn main() !void {
 
     const grid = try toGrid(contents, arena_allocator);
 
-    const splits = try applyBeam(grid, grid.start);
+    const splits = try countSplits(grid, grid.start);
     std.debug.print("Part 1: {}\n", .{splits});
 
     const beams = try countPaths(grid, grid.start);
